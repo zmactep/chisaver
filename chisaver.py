@@ -1,6 +1,7 @@
 __author__ = 'Pavel Yakovlev'
 
 import argparse
+import random
 import requests
 import re
 import os
@@ -12,7 +13,7 @@ def run(url, username, password, output):
     r = session.post("%slogin.asp" % url, {"UserName": username, "password": password})
     html = r.content.decode("utf8")
 
-    pattern_urls = re.compile('<a class="buttons" href="(.*)">Presentations</a>')
+    pattern_urls = re.compile('<a .*href="(.*)".*>Presentations</a>')
     pre_urls = list(pattern_urls.findall(html))
     urls = ["%s%s" % (url, x) for x in pre_urls]
 
@@ -20,7 +21,7 @@ def run(url, username, password, output):
     pre_names = [x.strip().replace('&amp;', 'and') for x in pattern_names.findall(html)]
     names = dict(zip([x[14:x.find('.')] for x in pre_urls], pre_names))
 
-    pattern_pdf = re.compile('<a href="(.*\\.pdf)" target="_blank">')
+    pattern_pdf = re.compile('<a .*href="(.*\\.pdf)".*>')
     pdfs = []
     for presUrl in urls:
         rp = session.get(presUrl)
@@ -29,12 +30,16 @@ def run(url, username, password, output):
     pdfs = list(chain(*pdfs))
 
     for pdf in pdfs:
-        directory = os.path.join(os.path.abspath(output), names[pdf.split("/")[-2]])
-        filename = pdf.split("/")[-1]
+        try:
+            directory = os.path.join(os.path.abspath(output), names[pdf.split("/")[-2]]).encode('ascii', 'backslashreplace')
+        except:
+            directory = os.path.abspath(output)
+        filename = pdf.split("/")[-1].encode('ascii', 'backslashreplace')
+        filepath = os.path.join(directory, filename)
         if not os.path.exists(directory):
             os.mkdir(directory)
-        if not os.path.exists(os.path.join(directory, filename)):
-            with open(os.path.join(directory, filename), "wb") as fd:
+        if not os.path.exists(filepath):
+            with open(filepath, "wb") as fd:
                 fd.write(session.get(pdf).content)
                 print("%s is saved to %s/%s" % (filename.split(".")[0], directory, filename))
     session.close()
